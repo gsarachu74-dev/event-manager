@@ -1,0 +1,488 @@
+/* =========================================
+RESET
+========================================= */
+
+:root {
+    --bg-main: #0a0f1e;
+    --bg-sidebar: #0b1120;
+    --bg-card: rgba(30, 41, 59, .75);
+
+    --text-main: #f1f5f9;
+    --text-muted: #94a3b8;
+
+    --primary: #c5a059;
+
+    --border: rgba(255, 255, 255, .08);
+    --radius: 12px;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html,
+body {
+    height: 100%;
+    width: 100%;
+    font-family: system-ui, -apple-system, sans-serif;
+    background: var(--bg-main);
+    color: var(--text-main);
+    overflow-x: hidden;
+}
+
+#app {
+    display: flex;
+    min-height: 100vh;
+    width: 100%;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* =========================================
+LAYOUT
+========================================= */
+
+.main-content {
+    flex: 1;
+    padding: 24px;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.scrollable {
+    flex: 1;
+    overflow-y: auto;
+}
+
+/* =========================================
+SIDEBAR
+========================================= */
+
+.sidebar {
+    background: #181818;
+    width: 240px;
+    min-width: 240px;
+    display: flex;
+    flex-direction: column;
+    padding: 20px 0;
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.sidebar-header {
+    padding: 0 24px 20px 24px;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.logo {
+    font-family: 'Jost', sans-serif;
+    color: var(--primary);
+}
+
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0 12px;
+    flex: 1;
+}
+
+.sidebar-nav span {
+    font-weight: 500;
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    color: #d0d0d0;
+    text-decoration: none;
+    font-size: 14px;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.nav-item ion-icon {
+    font-size: 18px;
+    min-width: 18px;
+    opacity: 0.85;
+}
+
+.nav-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: white;
+}
+
+.nav-item.active {
+    background: rgba(79, 140, 255, 0.15);
+    color: #6ea8ff;
+}
+
+.nav-item.active ion-icon {
+    opacity: 1;
+}
+
+.sidebar-footer {
+    margin-top: auto;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* =========================================
+BUTTONS
+========================================= */
+
+.btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    border: none;
+    background: none;
+    font-size: .9rem;
+}
+
+.btn ion-icon {
+    font-size: 20px;
+}
+
+.btn-text {
+    color: var(--text-muted);
+}
+
+.btn-text:hover {
+    color: var(--primary);
+    background: rgba(197, 160, 89, .08);
+}
+
+.btn-primary {
+    background: transparent;
+    border: 1px solid var(--primary);
+    color: var(--primary);
+}
+
+.btn-primary:hover {
+    background: var(--primary);
+    color: #000;
+}
+
+/* Botones específicos de la barra lateral */
+
+#logout-btn {
+    text-transform: none;
+    justify-content: flex-start;
+    color: var(--text-muted);
+    transition: all 0.2s ease;
+}
+
+#logout-btn:hover {
+    color: #ff5252;
+    background: rgba(255, 82, 82, 0.08);
+}
+
+#install-pwa-btn {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: rgba(197, 160, 89, 0.05);
+    font-weight: 500;
+}
+
+#install-pwa-btn:hover {
+    background: var(--primary);
+    color: #000;
+}
+
+.sidebar button span {
+    white-space: nowrap;
+}
+
+/* =========================================
+TOP BAR
+========================================= */
+
+.top-bar {
+    padding: 20px 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    background: #0a0f1e;
+}
+
+#view-title {
+    font-size: 1.4rem;
+    font-weight: 500;
+}
+
+.user-profile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #c5a059, #8e7341);
+}
+
+/* =========================================
+PROJECTS GRID
+========================================= */
+
+.projects-grid,
+.cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+}
+
+/* =========================================
+CARDS
+========================================= */
+
+.project-card,
+.card {
+    background: #1f1f1f;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.project-card:hover,
+.card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.35);
+    border-color: rgba(197, 160, 89, .4);
+}
+
+.project-card h3,
+.card h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.card .stat-number {
+    font-size: 28px;
+    font-weight: 700;
+    margin-top: 6px;
+}
+
+.project-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.stat-item {
+    font-size: .85rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.stat-item ion-icon {
+    color: var(--primary);
+}
+
+.project-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+}
+
+/* =========================================
+TASKS
+========================================= */
+
+.tasks-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.task-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-card);
+}
+
+.task-actions {
+    display: flex;
+    gap: 6px;
+}
+
+/* =========================================
+MODALS
+========================================= */
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, .8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: #111827;
+    padding: 30px;
+    border-radius: 14px;
+    width: 90%;
+    max-width: 500px;
+    border: 1px solid var(--border);
+}
+
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 10px;
+}
+
+/* =========================================
+FORMS
+========================================= */
+
+.input-group {
+    margin-bottom: 18px;
+}
+
+.input-group label {
+    display: block;
+    font-size: .8rem;
+    margin-bottom: 6px;
+    color: var(--primary);
+}
+
+input,
+select {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #0a0f1e;
+    color: white;
+}
+
+/* =========================================
+LOGIN
+========================================= */
+
+#login-container {
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle, #1e293b, #0a0f1e);
+}
+
+.login-card {
+    background: var(--bg-card);
+    padding: 40px;
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    width: 90%;
+    max-width: 420px;
+    text-align: center;
+}
+
+/* =========================================
+RESPONSIVE
+========================================= */
+
+@media(max-width:768px) {
+    #app {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        min-width: 100%;
+        flex-direction: row;
+        overflow-x: auto;
+        padding: 10px;
+        align-items: center;
+        gap: 10px;
+        background: #181818;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        border-right: none;
+    }
+
+    .sidebar-header,
+    .nav-item span,
+    .sidebar-footer button span {
+        display: none;
+    }
+
+    .sidebar-nav {
+        flex-direction: row;
+        flex: 0 0 auto;
+    }
+
+    .sidebar-footer {
+        flex-direction: row;
+        margin-top: 0;
+        padding-top: 0;
+        border-top: none;
+    }
+
+    .main-content {
+        padding: 16px;
+    }
+
+    .projects-grid,
+    .cards-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .project-actions {
+        flex-direction: column;
+    }
+
+    .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .sidebar-footer .btn {
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        justify-content: center;
+        border-radius: 50%;
+    }
+
+    #install-pwa-btn {
+        margin-top: 10px !important;
+    }
+}
