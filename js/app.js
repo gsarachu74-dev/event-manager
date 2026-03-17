@@ -121,101 +121,15 @@ const handleRoute = () => {
 
     // View Routing
     switch (path) {
-        case "#dashboard": renderDashboard(); break;
         case "#projects": renderProjects(); break;
         case "#tasks": renderTasks(params.project || null); break;
         case "#costs": renderCosts(params.project || null); break;
         case "#contacts": renderContacts(params.project || null); break;
         case "#project-dashboard": renderProjectDashboard(params.project || null); break;
-        default: renderDashboard();
+        default: renderProjects();
     }
 };
 
-/* ==========================================================================
-   VIEW RENDERING: DASHBOARD
-   ========================================================================== */
-
-const renderDashboard = async () => {
-    views.title.innerText = "Dashboard";
-    views.content.innerHTML = `<div class="loader">Generando vista general...</div>`;
-
-    if (!currentUser) return;
-
-    try {
-        const [tasks, projects] = await Promise.all([
-            getTasksByUser(currentUser.uid),
-            getProjectsByUser(currentUser.uid)
-        ]);
-
-        const projectMap = {};
-        projects.forEach(p => projectMap[p.id] = p.name);
-
-        const totalTasks = tasks.length;
-        const completedTasks = tasks.filter(t => t.status === "completed").length;
-        const pendingTasks = totalTasks - completedTasks;
-
-        let html = `
-            <div class="dashboard-stats cards-grid">
-                <div class="card">
-                    <h3>Proyectos</h3>
-                    <p class="stat-number" style="color: var(--primary-gold);">${projects.length}</p>
-                </div>
-                <div class="card">
-                    <h3>Tareas Totales</h3>
-                    <p class="stat-number" style="color: var(--primary-gold);">${totalTasks}</p>
-                </div>
-                <div class="card">
-                    <h3>Pendientes</h3>
-                    <p class="stat-number" style="color: #f59e0b;">${pendingTasks}</p>
-                </div>
-                <div class="card">
-                    <h3>Completadas</h3>
-                    <p class="stat-number" style="color: #10b981;">${completedTasks}</p>
-                </div>
-            </div>
-
-            <div style="margin-top: 3rem;">
-                <h2 style="margin-bottom: 1.5rem; text-transform: uppercase; font-size: 1rem; color: var(--primary-gold); letter-spacing: 0.1em;">Tareas Recientes</h2>
-                <div class="tasks-list">
-        `;
-
-        if (tasks.length === 0) {
-            html += `<p class="empty-state">No hay tareas recientes.</p>`;
-        } else {
-            tasks.slice(0, 10).forEach(task => {
-                const isCompleted = task.status === "completed";
-                const projectName = task.projectName || projectMap[task.projectId] || "Proyecto desconocido";
-                const dateObj = task.createdAt?.toDate ? task.createdAt.toDate() : new Date();
-                const formattedDate = dateObj.toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });
-
-                html += `
-                    <div class="card task-card">
-                        <div class="task-name">${task.name}</div>
-                        <div class="task-project">Proyecto: ${projectName}</div>
-                        <div class="task-meta">
-                            <span>${formattedDate}</span>
-                            <span class="task-status ${task.status}">${isCompleted ? "✅ Completada" : "⏳ Pendiente"}</span>
-                        </div>
-                    </div>
-                `;
-            });
-        }
-
-        html += `
-                </div>
-                <div style="margin-top: 2rem;">
-                    <button onclick="window.location.hash='#projects'" class="btn btn-primary">Ver todos los proyectos</button>
-                </div>
-            </div>
-        `;
-
-        views.content.innerHTML = html;
-
-    } catch (err) {
-        console.error(err);
-        views.content.innerHTML = `<p class="error">Error al cargar el dashboard.</p>`;
-    }
-};
 
 /* ==========================================================================
    VIEW RENDERING: PROJECTS
