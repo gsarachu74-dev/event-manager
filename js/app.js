@@ -316,8 +316,19 @@ const renderProjectDashboard = async (projectId) => {
         let html = `
             <div class="view-header">
                 <button onclick="window.location.hash='#projects'" class="btn btn-text">Volver</button>
-                <div style="display: flex; gap: 1rem; align-items: center;">
-                    <button id="btn-invite-collaborator" class="btn btn-text" style="color: var(--primary-gold);"><ion-icon name="person-add-outline"></ion-icon> Invitar</button>
+                <div style="display: flex; gap: 1rem; align-items: center; position: relative;">
+                    <button id="btn-toggle-invite-dropdown" class="btn btn-text" style="color: var(--primary-gold);"><ion-icon name="person-add-outline"></ion-icon> Invitar (${(project.collaborators?.length || 0) + 1})</button>
+                    <!-- dropdown here -->
+                    <div id="invite-dropdown" class="hidden" style="position: absolute; top: 100%; right: 0; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.3); z-index: 100; min-width: 250px; margin-top: 0.5rem;">
+                        <h4 style="margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--text-main);">Colaboradores</h4>
+                        <ul style="list-style: none; padding: 0; margin: 0 0 1rem 0; font-size: 0.85rem; color: var(--text-muted); max-height: 150px; overflow-y: auto;">
+                            ${(project.collaborators && project.collaborators.length > 0)
+                                ? project.collaborators.map(uid => `<li style="padding: 0.25rem 0; border-bottom: 1px solid var(--border-color);"><ion-icon name="person-circle-outline" style="vertical-align: middle; margin-right: 0.5rem;"></ion-icon>Usuario (${uid.substring(0,5)})</li>`).join('')
+                                : `<li style="padding: 0.25rem 0;">No hay invitados aún</li>`
+                            }
+                        </ul>
+                        <button id="btn-invite-collaborator" class="btn btn-primary" style="width: 100%; font-size: 0.8rem; padding: 0.5rem;">+ Invitar Nuevo</button>
+                    </div>
                     <div class="countdown-box"><ion-icon name="calendar-outline"></ion-icon> ${daysLeftText}</div>
                 </div>
             </div>
@@ -325,8 +336,8 @@ const renderProjectDashboard = async (projectId) => {
             <h2 style="margin-bottom: 2rem; color: var(--text-main);">${project.name}</h2>
 
             <div class="cards-grid summary-grid">
-                <div class="card summary-card">
-                    <h4><ion-icon name="wallet-outline"></ion-icon> Presupuesto</h4>
+                <div class="card summary-card interactive" onclick="window.location.hash='#costs?project=${projectId}'" style="cursor: pointer; transition: transform 0.2s; border: 1px solid transparent;" onmouseover="this.style.borderColor='var(--primary-gold)';" onmouseout="this.style.borderColor='transparent';">
+                    <h4><ion-icon name="wallet-outline"></ion-icon> Presupuesto / Costos</h4>
                     <div class="summary-value stat-number">$${totalCost.toLocaleString()}</div>
                     <div class="summary-footer">
                         <span>Estimado: $${estimatedBudget.toLocaleString()}</span><br>
@@ -335,20 +346,15 @@ const renderProjectDashboard = async (projectId) => {
                         </span>
                     </div>
                 </div>
-                <div class="card summary-card">
+                <div class="card summary-card interactive" onclick="window.location.hash='#tasks?project=${projectId}'" style="cursor: pointer; transition: transform 0.2s; border: 1px solid transparent;" onmouseover="this.style.borderColor='var(--primary-gold)';" onmouseout="this.style.borderColor='transparent';">
                     <h4><ion-icon name="list-outline"></ion-icon> Tareas</h4>
                     <div class="summary-value stat-number">${totalTasks}</div>
                     <div class="summary-footer"><span>${completedTasks} completadas</span> • <span>${pendingTasks} pendientes</span></div>
                 </div>
-                <div class="card summary-card">
+                <div class="card summary-card interactive" onclick="window.location.hash='#contacts?project=${projectId}'" style="cursor: pointer; transition: transform 0.2s; border: 1px solid transparent;" onmouseover="this.style.borderColor='var(--primary-gold)';" onmouseout="this.style.borderColor='transparent';">
                     <h4><ion-icon name="people-outline"></ion-icon> Contactos</h4>
                     <div class="summary-value stat-number">${contacts.length}</div>
                     <div class="summary-footer">Proveedores registrados</div>
-                </div>
-                <div class="card summary-card" style="opacity: 0.7;">
-                    <h4><ion-icon name="mail-unread-outline"></ion-icon> Invitados</h4>
-                    <div class="summary-value stat-number">0</div>
-                    <div class="summary-footer">Gestión de Invitados (Próximamente)</div>
                 </div>
             </div>
 
@@ -364,27 +370,16 @@ const renderProjectDashboard = async (projectId) => {
         html += `
                 </div>
             </div>
-
-            <div class="view-header" style="margin-top: 3rem; margin-bottom: 1.5rem;"><h3>Gestionar detalles</h3></div>
-            <div class="cards-grid">
-                 <div class="card project-card" onclick="window.location.hash='#tasks?project=${projectId}'" style="min-height: auto; padding: 1.5rem;">
-                    <h3>Lista de Tareas</h3>
-                    <p style="font-size: 0.85rem; color: var(--text-muted);">Ver y editar pendientes</p>
-                 </div>
-                 <div class="card project-card" onclick="window.location.hash='#costs?project=${projectId}'" style="min-height: auto; padding: 1.5rem;">
-                    <h3>Registro de Costos</h3>
-                    <p style="font-size: 0.85rem; color: var(--text-muted);">Seguimiento de gastos</p>
-                 </div>
-                 <div class="card project-card" onclick="window.location.hash='#contacts?project=${projectId}'" style="min-height: auto; padding: 1.5rem;">
-                    <h3>Contactos</h3>
-                    <p style="font-size: 0.85rem; color: var(--text-muted);">Proveedores del proyecto</p>
-                 </div>
-            </div>
         `;
 
         views.content.innerHTML = html;
 
         // --- Event Handlers ---
+        document.getElementById("btn-toggle-invite-dropdown")?.addEventListener("click", (e) => {
+            e.stopPropagation();
+            document.getElementById("invite-dropdown")?.classList.toggle("hidden");
+        });
+
         document.getElementById("btn-invite-collaborator")?.addEventListener("click", async () => {
             const email = prompt("Ingrese el correo electrónico del colaborador que desea invitar:");
             if (email && email.trim()) {
@@ -777,3 +772,10 @@ window.addEventListener("offline", updateOnlineStatus);
 // Initial check
 updateOnlineStatus();
 
+// Dropdown global closer
+window.addEventListener("click", (e) => {
+    const dropdown = document.getElementById("invite-dropdown");
+    if (dropdown && !dropdown.classList.contains("hidden") && !e.target.closest("#btn-toggle-invite-dropdown") && !e.target.closest("#invite-dropdown")) {
+        dropdown.classList.add("hidden");
+    }
+});
