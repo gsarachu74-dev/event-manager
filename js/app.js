@@ -2,7 +2,7 @@
  * js/app.js
  * Principal controller for UI rendering and routing.
  */
-import { onAuthChange, logout, login, signup } from "./services/auth.js";
+import { onAuthChange, logout, login, signup, getUserById } from "./services/auth.js";
 import { getProjectsByUser, createProject, deleteProjectWithTasks, updateProject, getProjectById, inviteCollaboratorByEmail } from "./services/projects.js";
 import { getTasksByProject, createTask, updateTaskStatus, deleteTask, updateTaskName, getTasksByUser } from "./services/tasks.js";
 import { getCostsByProject, createCost, deleteCost, updateCost } from "./services/costs.js";
@@ -290,6 +290,10 @@ const renderProjectDashboard = async (projectId) => {
 
         if (!project) { views.content.innerHTML = `<p class="error">Proyecto no encontrado.</p>`; return; }
 
+        const participantUids = [...new Set([project.ownerId, ...(project.collaborators || [])])].filter(Boolean);
+        const participants = await Promise.all(participantUids.map(uid => getUserById(uid)));
+        const validParticipants = participants.filter(p => p !== null);
+
         // Calculations
         const totalTasks = tasks.length;
         const pendingTasks = tasks.filter(t => t.status === "pending").length;
@@ -320,11 +324,19 @@ const renderProjectDashboard = async (projectId) => {
                     <button id="btn-toggle-invite-dropdown" class="btn btn-text" style="color: var(--primary-gold);"><ion-icon name="person-add-outline"></ion-icon> Invitar (${(project.collaborators?.length || 0) + 1})</button>
                     <!-- dropdown here -->
                     <div id="invite-dropdown" class="hidden" style="position: absolute; top: 100%; right: 0; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.3); z-index: 100; min-width: 250px; margin-top: 0.5rem;">
-                        <h4 style="margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--text-main);">Colaboradores</h4>
+                        <h4 style="margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--text-main);">Participantes</h4>
                         <ul style="list-style: none; padding: 0; margin: 0 0 1rem 0; font-size: 0.85rem; color: var(--text-muted); max-height: 150px; overflow-y: auto;">
-                            ${(project.collaborators && project.collaborators.length > 0)
-                                ? project.collaborators.map(uid => `<li style="padding: 0.25rem 0; border-bottom: 1px solid var(--border-color);"><ion-icon name="person-circle-outline" style="vertical-align: middle; margin-right: 0.5rem;"></ion-icon>Usuario (${uid.substring(0,5)})</li>`).join('')
-                                : `<li style="padding: 0.25rem 0;">No hay invitados aún</li>`
+                            ${(validParticipants.length > 0)
+                                ? validParticipants.map(p => {
+                                    const baseName = p.alias || p.displayName || p.email || "Usuario sin email";
+                                    const isOwner = p.uid === project.ownerId;
+                                    const displayName = isOwner ? `${baseName} (Propietario)` : baseName;
+                                    return `<li style="padding: 0.4rem 0; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.5rem;">
+                                        <ion-icon name="person-circle-outline" style="font-size: 1.2rem; color: var(--primary-gold); flex-shrink: 0;"></ion-icon>
+                                        <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${displayName}">${displayName}</span>
+                                    </li>`;
+                                }).join('')
+                                : `<li style="padding: 0.25rem 0;">No hay participantes</li>`
                             }
                         </ul>
                         <button id="btn-invite-collaborator" class="btn btn-primary" style="width: 100%; font-size: 0.8rem; padding: 0.5rem;">+ Invitar Nuevo</button>

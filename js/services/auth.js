@@ -10,10 +10,24 @@ import {
     onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-import { doc, setDoc, serverTimestamp }
+import { doc, setDoc, getDoc, serverTimestamp }
     from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 import { auth, db } from "./firebase.js";
+
+/**
+ * Obtener datos de un usuario por su UID.
+ */
+export const getUserById = async (uid) => {
+    try {
+        const docRef = doc(db, "users", uid);
+        const docSnap = await getDoc(docRef);
+        return docSnap.exists() ? docSnap.data() : null;
+    } catch (error) {
+        console.error("Error obteniendo usuario:", error);
+        return null;
+    }
+};
 
 /**
  * Inicia sesión con email y contraseña.
