@@ -14,7 +14,8 @@ import {
     deleteDoc,
     doc,
     updateDoc,
-    arrayUnion
+    arrayUnion,
+    collectionGroup
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 import { db } from "./firebase.js";
@@ -184,40 +185,99 @@ export const addCollaboratorToProject = async (projectId, collaboratorUid) => {
 };
 
 /**
- * Invitar a un colaborador por su correo electrónico.
+ * Crear una invitación.
  */
-export const inviteCollaboratorByEmail = async (projectId, email) => {
-    if (!projectId || !email) {
-        throw new Error("ID de proyecto o email no proporcionado.");
+export const createInvite = async (projectId, email, role = "editor") => {
+    if (!projectId || !email) throw new Error("ID de proyecto o email no proporcionado.");
+    email = email.trim();
+    
+    // Check if invite already exists
+    const q = query(
+        collection(db, "projects", projectId, "invites"),
+        where("email", "==", email)
+    );
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+        throw new Error("Ya existe una invitación para este correo en el proyecto.");
     }
+    
+    await addDoc(collection(db, "projects", projectId, "invites"), {
+        email,
+        role,
+        status: "pending",
+        invitedAt: serverTimestamp()
+    });
+};
 
+/**
+ * Obtener invitaciones de un proyecto.
+ */
+export const getInvitesByProject = async (projectId) => {
+    if (!projectId) return [];
     try {
-        // 1. Buscar el usuario en la colección "users" por email
-        const q = query(collection(db, "users"), where("email", "==", email.trim()));
+        const q = query(collection(db, "projects", projectId, "invites"));
         const snap = await getDocs(q);
-
-        if (snap.empty) {
-            throw new Error("Usuario no encontrado con ese correo electrónico.");
-        }
-
-        const collaboratorUid = snap.docs[0].data().uid;
-
-        const projectRef = doc(db, "projects", projectId);
-        const projectSnap = await getDoc(projectRef);
-
-        if (projectSnap.exists()) {
-            const projectData = projectSnap.data();
-            if (projectData.collaborators && projectData.collaborators.includes(collaboratorUid)) {
-                throw new Error("This user is already a collaborator.");
-            }
-        }
-
-        // 2. Agregar ese uid al array collaborators usando arrayUnion
-        await updateDoc(projectRef, {
-            collaborators: arrayUnion(collaboratorUid)
-        });
+        return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch (error) {
-        console.error("Error invitando colaborador:", error);
-        throw error;
+        console.error("Error obteniendo invitaciones:", error);
+        return [];
+    }
+};
+
+/**
+ * Procesar invitaciones pendientes al iniciar sesión.
+ */
+export const processPendingInvites = async (user) => {
+    if (!user || !user.email) return;
+    try {
+        const q = query(
+            collectionGroup(db, "invites"),
+            where("email", "==", user.email),
+            where("status", "==", "pending")
+        );
+        const snap = await getDocs(q);
+        
+        const processPromises = snap.docs.map(async (invDoc) => {
+            // Inv doc ref: projects/{projectId}/invites/{inviteId}
+            const inviteRef = invDoc.ref;
+            const projectId = inviteRef.parent.parent.id;
+            
+            // 1. Update invite status to accepted
+            await updateDoc(inviteRef, { status: "accepted" });
+            
+            // 2. Add user to project collaborators
+            const projectRef = doc(db, "projects", projectId);
+            await updateDoc(projectRef, {
+                collaborators: arrayUnion(user.uid)
+            });
+        });
+        
+        await Promise.all(processPromises);
+    } catch (error) {
+        console.error("Error procesando invitaciones:", error);
+    }
+};
+
+/**
+ * Obtener el rol actual del usuario en un proyecto.
+ */
+export const getMyRole = async (projectId, currentUser) => {
+    if (!projectId || !currentUser) return "viewer";
+    try {
+        const project = await getProjectById(projectId);
+        if (!project) return "viewer";
+        
+        if (project.ownerId === currentUser.uid) return "owner";
+        
+        const invites = await getInvitesByProject(projectId);
+        const myInvite = invites.find(i => i.email === currentUser.email);
+        if (myInvite) return myInvite.role || "editor";
+        
+        if (project.collaborators && project.collaborators.includes(currentUser.uid)) return "editor"; // Legacy
+        
+        return "viewer";
+    } catch (error) {
+         console.error("Error obteniendo rol:", error);
+         return "viewer";
     }
 };

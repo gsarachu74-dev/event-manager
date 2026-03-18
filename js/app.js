@@ -2,8 +2,8 @@
  * js/app.js
  * Principal controller for UI rendering and routing.
  */
-import { onAuthChange, logout, login, signup, getUserById } from "./services/auth.js";
-import { getProjectsByUser, createProject, deleteProjectWithTasks, updateProject, getProjectById, inviteCollaboratorByEmail } from "./services/projects.js";
+import { onAuthChange, logout, login, signup, getUserById, getUserByEmail } from "./services/auth.js";
+import { getProjectsByUser, createProject, deleteProjectWithTasks, updateProject, getProjectById, createInvite, getInvitesByProject, processPendingInvites, getMyRole } from "./services/projects.js";
 import { getTasksByProject, createTask, updateTaskStatus, deleteTask, updateTaskName, getTasksByUser } from "./services/tasks.js";
 import { getCostsByProject, createCost, deleteCost, updateCost } from "./services/costs.js";
 import { getContactsByProject, createContact, deleteContact, updateContact } from "./services/contacts.js";
@@ -186,8 +186,8 @@ const renderProjects = async () => {
                             </div>
                         </div>
                         <div class="project-actions">
-                            <button class="btn-edit-project btn btn-text" data-id="${project.id}">Editar</button>
-                            <button class="btn-delete-project btn btn-text error" data-id="${project.id}">Eliminar</button>
+                            <button class="btn-edit-project btn btn-text" data-id="${project.id}" ${project.ownerId !== currentUser.uid ? 'disabled' : ''}>Editar</button>
+                            <button class="btn-delete-project btn btn-text error" data-id="${project.id}" ${project.ownerId !== currentUser.uid ? 'disabled' : ''}>Eliminar</button>
                         </div>
                     </div>
                 `;
@@ -281,18 +281,26 @@ const renderProjectDashboard = async (projectId) => {
     views.content.innerHTML = `<div class="loader">Cargando panel...</div>`;
 
     try {
-        const [project, tasks, costs, contacts] = await Promise.all([
+        const [project, tasks, costs, contacts, invites] = await Promise.all([
             getProjectById(projectId),
             getTasksByProject(projectId, currentUser.uid),
             getCostsByProject(projectId, currentUser.uid),
-            getContactsByProject(projectId, currentUser.uid)
+            getContactsByProject(projectId, currentUser.uid),
+            getInvitesByProject(projectId)
         ]);
 
         if (!project) { views.content.innerHTML = `<p class="error">Proyecto no encontrado.</p>`; return; }
 
-        const participantUids = [...new Set([project.ownerId, ...(project.collaborators || [])])].filter(Boolean);
-        const participants = await Promise.all(participantUids.map(uid => getUserById(uid)));
-        const validParticipants = participants.filter(p => p !== null);
+        const owner = await getUserById(project.ownerId);
+        const myRole = await getMyRole(projectId, currentUser);
+
+        const invitesWithDetails = await Promise.all((invites || []).map(async (inv) => {
+            const userDoc = await getUserByEmail(inv.email);
+            return {
+                ...inv,
+                displayName: userDoc ? (userDoc.alias || userDoc.displayName || userDoc.email) : inv.email
+            };
+        }));
 
         // Calculations
         const totalTasks = tasks.length;
@@ -321,25 +329,40 @@ const renderProjectDashboard = async (projectId) => {
             <div class="view-header">
                 <button onclick="window.location.hash='#projects'" class="btn btn-text">Volver</button>
                 <div style="display: flex; gap: 1rem; align-items: center; position: relative;">
-                    <button id="btn-toggle-invite-dropdown" class="btn btn-text" style="color: var(--primary-gold);"><ion-icon name="person-add-outline"></ion-icon> Invitar (${(project.collaborators?.length || 0) + 1})</button>
+                    <button id="btn-toggle-invite-dropdown" class="btn btn-text" style="color: var(--primary-gold);"><ion-icon name="person-add-outline"></ion-icon> Invitar (${(invites?.length || 0) + 1})</button>
                     <!-- dropdown here -->
                     <div id="invite-dropdown" class="hidden" style="position: absolute; top: 100%; right: 0; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.3); z-index: 100; min-width: 250px; margin-top: 0.5rem;">
                         <h4 style="margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--text-main);">Participantes</h4>
                         <ul style="list-style: none; padding: 0; margin: 0 0 1rem 0; font-size: 0.85rem; color: var(--text-muted); max-height: 150px; overflow-y: auto;">
-                            ${(validParticipants.length > 0)
-                                ? validParticipants.map(p => {
-                                    const baseName = p.alias || p.displayName || p.email || "Usuario sin email";
-                                    const isOwner = p.uid === project.ownerId;
-                                    const displayName = isOwner ? `${baseName} (Propietario)` : baseName;
-                                    return `<li style="padding: 0.4rem 0; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.5rem;">
-                                        <ion-icon name="person-circle-outline" style="font-size: 1.2rem; color: var(--primary-gold); flex-shrink: 0;"></ion-icon>
-                                        <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${displayName}">${displayName}</span>
+                            <li style="padding: 0.4rem 0; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.5rem;">
+                                <ion-icon name="person-circle-outline" style="font-size: 1.2rem; color: var(--primary-gold); flex-shrink: 0;"></ion-icon>
+                                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${owner ? (owner.alias || owner.displayName || owner.email || "Usuario sin email") : "Propietario"} (Propietario)">${owner ? (owner.alias || owner.displayName || owner.email || "Usuario sin email") : "Propietario"} (Propietario)</span>
+                            </li>
+                            ${(invitesWithDetails && invitesWithDetails.length > 0)
+                                ? invitesWithDetails.map(inv => {
+                                    const statusText = inv.status === 'accepted' ? 'Activo' : 'Pendiente';
+                                    const statusColor = inv.status === 'accepted' ? 'var(--primary-gold)' : 'var(--text-muted)';
+                                    const roleText = inv.role === 'viewer' ? 'Viewer' : 'Editor';
+                                    const displayLabel = `${inv.displayName || inv.email} (${roleText})`;
+                                    return `<li style="padding: 0.4rem 0; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.5rem; justify-content: space-between;">
+                                        <div style="display: flex; align-items: center; gap: 0.5rem; overflow: hidden;">
+                                            <ion-icon name="mail-outline" style="font-size: 1.2rem; color: var(--text-muted); flex-shrink: 0;"></ion-icon>
+                                            <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${displayLabel}">${displayLabel}</span>
+                                        </div>
+                                        <span style="font-size: 0.75rem; color: ${statusColor}; background: var(--bg-main); padding: 0.1rem 0.4rem; border-radius: 4px;">${statusText}</span>
                                     </li>`;
                                 }).join('')
-                                : `<li style="padding: 0.25rem 0;">No hay participantes</li>`
+                                : ''
                             }
                         </ul>
-                        <button id="btn-invite-collaborator" class="btn btn-primary" style="width: 100%; font-size: 0.8rem; padding: 0.5rem;">+ Invitar Nuevo</button>
+                        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem; flex-wrap: wrap;">
+                            <input type="email" id="invite-email-input" placeholder="correo@ejemplo.com" ${myRole === 'viewer' ? 'disabled' : ''} style="flex: 1; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-main); color: var(--text-main); font-size: 0.8rem; min-width: 120px;">
+                            <select id="invite-role-input" ${myRole === 'viewer' ? 'disabled' : ''} style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-main); color: var(--text-main); font-size: 0.8rem;">
+                                <option value="editor">Editor</option>
+                                <option value="viewer">Viewer</option>
+                            </select>
+                            <button id="btn-send-invite" class="btn btn-primary" ${myRole === 'viewer' ? 'disabled' : ''} style="font-size: 0.8rem; padding: 0.5rem 1rem;">Invitar</button>
+                        </div>
                     </div>
                     <div class="countdown-box"><ion-icon name="calendar-outline"></ion-icon> ${daysLeftText}</div>
                 </div>
@@ -392,15 +415,18 @@ const renderProjectDashboard = async (projectId) => {
             document.getElementById("invite-dropdown")?.classList.toggle("hidden");
         });
 
-        document.getElementById("btn-invite-collaborator")?.addEventListener("click", async () => {
-            const email = prompt("Ingrese el correo electrónico del colaborador que desea invitar:");
-            if (email && email.trim()) {
+        document.getElementById("btn-send-invite")?.addEventListener("click", async () => {
+            const emailInput = document.getElementById("invite-email-input");
+            const roleInput = document.getElementById("invite-role-input");
+            const email = emailInput.value.trim();
+            const role = roleInput.value;
+            if (email) {
                 try {
-                    await inviteCollaboratorByEmail(projectId, email.trim());
-                    alert("Colaborador invitado exitosamente.");
+                    await createInvite(projectId, email, role);
+                    alert("Invitación enviada exitosamente.");
                     renderProjectDashboard(projectId);
                 } catch (error) {
-                    alert("Error al invitar colaborador: " + error.message);
+                    alert("Error al invitar: " + error.message);
                 }
             }
         });
@@ -424,13 +450,17 @@ const renderTasks = async (projectId = null) => {
     views.content.innerHTML = `<div class="loader">Cargando tareas...</div>`;
 
     try {
-        const [tasks, project] = await Promise.all([getTasksByProject(projectId, currentUser.uid), getProjectById(projectId)]);
+        const [tasks, project, myRole] = await Promise.all([
+            getTasksByProject(projectId, currentUser.uid), 
+            getProjectById(projectId),
+            getMyRole(projectId, currentUser)
+        ]);
         const projectName = project ? project.name : "Proyecto";
 
         let html = `
             <div class="view-header">
                 <button onclick="window.location.hash='#project-dashboard?project=${projectId}'" class="btn btn-text">Volver</button>
-                <button id="btn-new-task" class="btn btn-primary">Crear Tarea</button>
+                <button id="btn-new-task" class="btn btn-primary" ${myRole === 'viewer' ? 'disabled' : ''}>Crear Tarea</button>
             </div>
         `;
 
@@ -447,9 +477,9 @@ const renderTasks = async (projectId = null) => {
                             <span class="badge ${task.status}">${isComp ? "Completada" : "Pendiente"}</span>
                         </div>
                         <div class="task-actions">
-                            <button class="btn-toggle-status btn ${isComp ? "btn-text" : "btn-primary"}" data-id="${task.id}" data-status="${task.status}">${isComp ? "Reabrir" : "Completar"}</button>
-                            <button class="btn-edit-task btn btn-text" data-id="${task.id}" data-name="${task.name}">Editar</button>
-                            <button class="btn-delete-task btn btn-text error" data-id="${task.id}">Eliminar</button>
+                            <button class="btn-toggle-status btn ${isComp ? "btn-text" : "btn-primary"}" data-id="${task.id}" data-status="${task.status}" ${myRole === 'viewer' ? 'disabled' : ''}>${isComp ? "Reabrir" : "Completar"}</button>
+                            <button class="btn-edit-task btn btn-text" data-id="${task.id}" data-name="${task.name}" ${myRole === 'viewer' ? 'disabled' : ''}>Editar</button>
+                            <button class="btn-delete-task btn btn-text error" data-id="${task.id}" ${myRole === 'viewer' ? 'disabled' : ''}>Eliminar</button>
                         </div>
                     </div>
                 `;
@@ -514,13 +544,17 @@ const renderCosts = async (projectId = null) => {
     views.content.innerHTML = `<div class="loader">Cargando costos...</div>`;
 
     try {
-        const [costs, project] = await Promise.all([getCostsByProject(projectId, currentUser.uid), getProjectById(projectId)]);
+        const [costs, project, myRole] = await Promise.all([
+            getCostsByProject(projectId, currentUser.uid), 
+            getProjectById(projectId),
+            getMyRole(projectId, currentUser)
+        ]);
         const total = costs.reduce((sum, cost) => sum + cost.amount, 0);
 
         let html = `
             <div class="view-header">
                 <button onclick="window.location.hash='#project-dashboard?project=${projectId}'" class="btn btn-text">Volver</button>
-                <button id="btn-new-cost" class="btn btn-primary">Agregar Costo</button>
+                <button id="btn-new-cost" class="btn btn-primary" ${myRole === 'viewer' ? 'disabled' : ''}>Agregar Costo</button>
             </div>
         `;
 
@@ -537,8 +571,8 @@ const renderCosts = async (projectId = null) => {
                             <div style="font-size: 0.8rem; color: var(--text-gold);">${cost.category || "Otros"}</div>
                         </div>
                         <div class="task-actions">
-                            <button class="btn-edit-cost btn btn-text" data-id="${cost.id}" data-name="${cost.name}" data-amount="${cost.amount}" data-category="${cost.category}">Editar</button>
-                            <button class="btn-delete-cost btn btn-text error" data-id="${cost.id}">Eliminar</button>
+                            <button class="btn-edit-cost btn btn-text" data-id="${cost.id}" data-name="${cost.name}" data-amount="${cost.amount}" data-category="${cost.category}" ${myRole === 'viewer' ? 'disabled' : ''}>Editar</button>
+                            <button class="btn-delete-cost btn btn-text error" data-id="${cost.id}" ${myRole === 'viewer' ? 'disabled' : ''}>Eliminar</button>
                         </div>
                     </div>
                 `;
@@ -605,12 +639,15 @@ const renderContacts = async (projectId = null) => {
     views.content.innerHTML = `<div class="loader">Cargando contactos...</div>`;
 
     try {
-        const contacts = await getContactsByProject(projectId, currentUser.uid);
+        const [contacts, myRole] = await Promise.all([
+            getContactsByProject(projectId, currentUser.uid),
+            getMyRole(projectId, currentUser)
+        ]);
 
         let html = `
             <div class="view-header">
                 <button onclick="window.location.hash='#project-dashboard?project=${projectId}'" class="btn btn-text">Volver</button>
-                <button id="btn-new-contact" class="btn btn-primary">Nuevo Contacto</button>
+                <button id="btn-new-contact" class="btn btn-primary" ${myRole === 'viewer' ? 'disabled' : ''}>Nuevo Contacto</button>
             </div>
         `;
 
@@ -628,8 +665,8 @@ const renderContacts = async (projectId = null) => {
                             <span><ion-icon name="mail-outline"></ion-icon> ${contact.email || "---"}</span>
                         </div>
                         <div class="task-actions" style="margin-top: 1.5rem; opacity: 1;">
-                            <button class="btn-edit-contact btn btn-text" data-id="${contact.id}" data-name="${contact.name}" data-service="${contact.serviceType}" data-phone="${contact.phone}" data-email="${contact.email}">Editar</button>
-                            <button class="btn-delete-contact btn btn-text error" data-id="${contact.id}">Eliminar</button>
+                            <button class="btn-edit-contact btn btn-text" data-id="${contact.id}" data-name="${contact.name}" data-service="${contact.serviceType}" data-phone="${contact.phone}" data-email="${contact.email}" ${myRole === 'viewer' ? 'disabled' : ''}>Editar</button>
+                            <button class="btn-delete-contact btn btn-text error" data-id="${contact.id}" ${myRole === 'viewer' ? 'disabled' : ''}>Eliminar</button>
                         </div>
                     </div>
                 `;
@@ -689,11 +726,12 @@ const renderContacts = async (projectId = null) => {
 
 window.addEventListener("hashchange", handleRoute);
 
-onAuthChange((user) => {
+onAuthChange(async (user) => {
     console.log("AUTH USER:", user);
 
     if (user) {
         console.log("UID ACTUAL:", user.uid);
+        await processPendingInvites(user);
     }
 
     currentUser = user;
